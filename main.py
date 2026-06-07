@@ -19,6 +19,7 @@ from config import DEFAULT_OUTPUT_DIR
 from core.downloader import download_one
 from core.extractor import (
     extract_bvid,
+    extract_page_index,
     has_explicit_page_param,
     is_collection_url,
     extract_collection_info,
@@ -63,12 +64,20 @@ def _expand_collection(url: str) -> tuple:
     return name, [f"https://www.bilibili.com/video/{bvid}" for bvid in bvids]
 
 
-def _ask_all_parts(bvid: str, title: str, page_count: int) -> bool:
-    """交互式询问是否下载全部分 P。"""
+def _ask_all_parts(
+    bvid: str, title: str, page_count: int, current_page: Optional[int] = None
+) -> bool:
+    """交互式询问是否下载全部分 P。
+
+    current_page: 用户链接中显式指定的分 P。为 None 时表示未指定，默认只下 P1。
+    """
     console.print(
         f"[cyan]?[/cyan] 视频 [bold]{title}[/bold]（{bvid}）共有 [bold]{page_count}[/bold] 个分 P。"
     )
-    console.print("  [A] 只下载第 1 P（默认）")
+    if current_page is not None:
+        console.print(f"  [A] 只下载第 {current_page} P（当前链接指定）")
+    else:
+        console.print("  [A] 只下载第 1 P（默认）")
     console.print(f"  [B] 下载全部 {page_count} 个分 P，保存到 '{_safe_folder_name(title)}/' 文件夹")
     try:
         choice = input("请选择 [A/B]: ").strip().upper()
@@ -121,20 +130,13 @@ def _collect_tasks(
             console.print(f"[yellow]warn[/yellow] 无法获取视频信息: {raw} — {e}")
             continue
 
-        # 显式指定了 ?p=N，只下载该 P
-        if has_explicit_page_param(raw):
-            key = (bvid, str(base_output))
-            if key not in seen:
-                seen.add(key)
-                tasks.append(DownloadTask(url=raw, output_dir=base_output))
-            continue
-
         # 多 P 视频：询问或按 --all-parts 参数决定
         if meta.pages and len(meta.pages) > 1:
             page_count = len(meta.pages)
+            current_page = extract_page_index(raw) if has_explicit_page_param(raw) else None
             should_download_all = all_parts
             if not should_download_all and sys.stdin.isatty():
-                should_download_all = _ask_all_parts(bvid, meta.title, page_count)
+                should_download_all = _ask_all_parts(bvid, meta.title, page_count, current_page)
 
             if should_download_all:
                 folder_name = _safe_folder_name(meta.title)
@@ -149,14 +151,16 @@ def _collect_tasks(
                         seen.add(key)
                         tasks.append(DownloadTask(url=page_url, output_dir=parts_output))
             else:
-                # 只下载 P1
-                key = (meta.bvid, str(base_output))
+                # 只下载指定的 P（显式 ?p=N）或 P1（未指定）
+                target_page = current_page if current_page is not None else 1
+                target_url = raw if has_explicit_page_param(raw) else f"https://www.bilibili.com/video/{meta.bvid}"
+                key = (f"{meta.bvid}_p{target_page}", str(base_output))
                 if key not in seen:
                     seen.add(key)
-                    tasks.append(DownloadTask(url=raw, output_dir=base_output))
+                    tasks.append(DownloadTask(url=target_url, output_dir=base_output))
         else:
             # 单 P 视频
-            key = (meta.bvid, str(base_output))
+            key = (bvid, str(base_output))
             if key not in seen:
                 seen.add(key)
                 tasks.append(DownloadTask(url=raw, output_dir=base_output))
