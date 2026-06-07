@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """bilibili-sub-md CLI 入口"""
 
+import os
 import random
 import sys
 import time
@@ -142,10 +143,13 @@ def download(
     cookie: Optional[str] = typer.Option(None, "--cookie", "-c", help="Bilibili Cookie 中的 SESSDATA 值（用于获取需要登录的字幕）"),
 ):
     """批量下载 Bilibili 视频字幕。"""
-    # 设置全局 Cookie
-    if cookie:
-        set_cookie(cookie)
+    # 设置全局 Cookie：优先命令行参数，其次环境变量
+    effective_cookie = cookie or os.environ.get("BILI_COOKIE") or os.environ.get("BILIBILI_SESSDATA")
+    if effective_cookie:
+        set_cookie(effective_cookie)
         console.print("[dim]已设置登录 Cookie[/dim]")
+    else:
+        console.print("[dim]提示：如需下载登录后才能看到的字幕，请用 --cookie 参数或 BILI_COOKIE 环境变量传入 SESSDATA[/dim]")
 
     console.print("[bold cyan]bilibili-sub-md[/bold cyan] — 批量字幕下载工具\n")
 

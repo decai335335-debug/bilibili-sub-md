@@ -159,6 +159,26 @@ python main.py download "https://www.bilibili.com/video/BV1dM411U7qK" --cookie "
 python main.py download --cookie "你的SESSDATA值" -i
 ```
 
+如果你更喜欢先设置环境变量再进入交互模式（避免每次粘贴很长的 SESSDATA）：
+
+**Windows PowerShell:**
+```powershell
+$env:BILI_COOKIE="你的SESSDATA值"
+python main.py download -i
+```
+
+**Windows CMD:**
+```cmd
+set BILI_COOKIE=你的SESSDATA值
+python main.py download -i
+```
+
+**macOS / Linux:**
+```bash
+export BILI_COOKIE="你的SESSDATA值"
+python main.py download -i
+```
+
 > ⚠️ **安全提示**：SESSDATA 相当于你的登录凭证，不要把它分享到公开仓库或发给他人。建议只在本地命令行中使用。
 
 ### 支持的 URL 格式
