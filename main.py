@@ -19,6 +19,7 @@ from config import DEFAULT_OUTPUT_DIR
 from core.downloader import download_one
 from core.extractor import (
     extract_bvid,
+    has_explicit_page_param,
     is_collection_url,
     extract_collection_info,
 )
@@ -62,8 +63,26 @@ def _expand_collection(url: str) -> tuple:
     return name, [f"https://www.bilibili.com/video/{bvid}" for bvid in bvids]
 
 
-def _collect_tasks(raw_urls: List[str], base_output: Path) -> List[DownloadTask]:
-    """收集所有下载任务，自动识别播放列表。"""
+def _ask_all_parts(bvid: str, title: str, page_count: int) -> bool:
+    """交互式询问是否下载全部分 P。"""
+    console.print(
+        f"[cyan]?[/cyan] 视频 [bold]{title}[/bold]（{bvid}）共有 [bold]{page_count}[/bold] 个分 P。"
+    )
+    console.print("  [A] 只下载第 1 P（默认）")
+    console.print(f"  [B] 下载全部 {page_count} 个分 P，保存到 '{_safe_folder_name(title)}/' 文件夹")
+    try:
+        choice = input("请选择 [A/B]: ").strip().upper()
+    except EOFError:
+        choice = "A"
+    return choice == "B"
+
+
+def _collect_tasks(
+    raw_urls: List[str],
+    base_output: Path,
+    all_parts: bool = False,
+) -> List[DownloadTask]:
+    """收集所有下载任务，自动识别播放列表和多 P 视频。"""
     tasks: List[DownloadTask] = []
     seen = set()
 
@@ -88,13 +107,56 @@ def _collect_tasks(raw_urls: List[str], base_output: Path) -> List[DownloadTask]
                         tasks.append(DownloadTask(url=u, output_dir=playlist_output))
             except Exception as e:
                 console.print(f"[yellow]warn[/yellow] 播放列表展开失败: {raw} — {e}")
+            continue
 
-        else:
-            bvid = extract_bvid(raw)
-            if not bvid:
-                console.print(f"[yellow]warn[/yellow] 跳过无效链接: {raw}")
-                continue
+        # 单个视频链接
+        bvid = extract_bvid(raw)
+        if not bvid:
+            console.print(f"[yellow]warn[/yellow] 跳过无效链接: {raw}")
+            continue
+
+        try:
+            meta = fetch_video_meta(bvid)
+        except Exception as e:
+            console.print(f"[yellow]warn[/yellow] 无法获取视频信息: {raw} — {e}")
+            continue
+
+        # 显式指定了 ?p=N，只下载该 P
+        if has_explicit_page_param(raw):
             key = (bvid, str(base_output))
+            if key not in seen:
+                seen.add(key)
+                tasks.append(DownloadTask(url=raw, output_dir=base_output))
+            continue
+
+        # 多 P 视频：询问或按 --all-parts 参数决定
+        if meta.pages and len(meta.pages) > 1:
+            page_count = len(meta.pages)
+            should_download_all = all_parts
+            if not should_download_all and sys.stdin.isatty():
+                should_download_all = _ask_all_parts(bvid, meta.title, page_count)
+
+            if should_download_all:
+                folder_name = _safe_folder_name(meta.title)
+                parts_output = base_output / folder_name
+                console.print(
+                    f"[blue]info[/blue] 多 P 视频 '{meta.title}' -> {page_count} 个分 P -> 文件夹 '{folder_name}/'"
+                )
+                for page in meta.pages:
+                    page_url = f"https://www.bilibili.com/video/{meta.bvid}?p={page.page}"
+                    key = (f"{meta.bvid}_p{page.page}", str(parts_output))
+                    if key not in seen:
+                        seen.add(key)
+                        tasks.append(DownloadTask(url=page_url, output_dir=parts_output))
+            else:
+                # 只下载 P1
+                key = (meta.bvid, str(base_output))
+                if key not in seen:
+                    seen.add(key)
+                    tasks.append(DownloadTask(url=raw, output_dir=base_output))
+        else:
+            # 单 P 视频
+            key = (meta.bvid, str(base_output))
             if key not in seen:
                 seen.add(key)
                 tasks.append(DownloadTask(url=raw, output_dir=base_output))
@@ -141,6 +203,7 @@ def download(
     max_workers: int = typer.Option(3, "--workers", "-w", help="并发数"),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="交互模式输入链接"),
     cookie: Optional[str] = typer.Option(None, "--cookie", "-c", help="Bilibili Cookie 中的 SESSDATA 值（用于获取需要登录的字幕）"),
+    all_parts: bool = typer.Option(False, "--all-parts", "-a", help="自动下载多 P 视频的全部分 P，保存到以视频标题命名的文件夹"),
 ):
     """批量下载 Bilibili 视频字幕。"""
     # 设置全局 Cookie：优先命令行参数，其次环境变量
@@ -164,7 +227,7 @@ def download(
         console.print("[yellow]没有可处理的链接[/yellow]")
         raise typer.Exit(1)
 
-    tasks = _collect_tasks(raw_urls, output)
+    tasks = _collect_tasks(raw_urls, output, all_parts=all_parts)
     if not tasks:
         console.print("[yellow]没有可下载的任务[/yellow]")
         raise typer.Exit(1)

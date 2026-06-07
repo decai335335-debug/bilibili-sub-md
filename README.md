@@ -115,13 +115,36 @@ python main.py download "https://space.bilibili.com/123456/channel/collectiondet
 
 播放列表内所有视频的字幕会下载到以合集名称命名的子文件夹中。
 
-### 场景四：下载多 P 视频的所有分 P
+### 场景四：下载多 P 视频的全部分 P（功能 B）
+
+**什么时候用**：一个 BV 号下包含多个分 P（如课程系列），想把所有分 P 的字幕一次性下载到以视频标题命名的文件夹。
 
 ```bash
-python main.py download "https://www.bilibili.com/video/BV1xx411c7mD"
+python main.py download "https://www.bilibili.com/video/BV1Ra5K61EQ4" --all-parts
 ```
 
-如果该 BV 号有多个分 P，会自动为每个分 P 生成独立文件。
+会自动：
+1. 识别该视频共有多少个分 P
+2. 创建以视频标题命名的子文件夹（如 `麻省理工_如何用AI做任何事_Mit_How_To_Ai_Almost_Anything_Spring_2026/`）
+3. 下载所有分 P 的字幕，文件名包含分 P 标题
+
+**交互模式下的 A/B 选择**：
+
+在交互模式下粘贴多 P 视频链接时，程序会询问：
+
+```
+? 视频 '【麻省理工】如何用Ai做任何事 ...'（BV1Ra5K61EQ4）共有 12 个分 P。
+  [A] 只下载第 1 P（默认）
+  [B] 下载全部 12 个分 P，保存到 '麻省理工_如何用AI做任何事.../' 文件夹
+请选择 [A/B]:
+```
+
+输入 `B` 即可下载全部分 P。
+
+如果只想下载某一个特定分 P，在 URL 中加上 `?p=N`：
+```bash
+python main.py download "https://www.bilibili.com/video/BV1Ra5K61EQ4?p=3"
+```
 
 ### 场景五：指定输出格式和语言
 

@@ -35,6 +35,14 @@ def extract_page_index(url: str) -> int:
         return 1
 
 
+def has_explicit_page_param(url: str) -> bool:
+    """判断 URL 是否显式指定了分 P 参数 ?p=N。"""
+    try:
+        return urlparse(url).query and "p=" in urlparse(url).query
+    except Exception:
+        return False
+
+
 def is_collection_url(url: str) -> bool:
     """判断是否为合集/系列/收藏夹等播放列表 URL。"""
     patterns = [
