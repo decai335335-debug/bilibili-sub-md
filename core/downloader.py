@@ -10,6 +10,7 @@ import requests
 from config import SUBTITLE_LANG_PRIORITY, FILENAME_BAD_CHARS, FILENAME_MAX_LENGTH
 from models import (
     VideoMeta,
+    VideoPage,
     SubtitleItem,
     SubtitleResult,
     DownloadResult,
