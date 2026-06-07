@@ -47,3 +47,11 @@ DEFAULT_HEADERS = {
     ),
     "Referer": "https://www.bilibili.com",
 }
+
+
+def build_headers(cookie: str = "") -> dict:
+    """根据是否提供 Cookie 构建请求头。"""
+    headers = dict(DEFAULT_HEADERS)
+    if cookie:
+        headers["Cookie"] = cookie if cookie.lower().startswith("sessdata=") else f"SESSDATA={cookie}"
+    return headers

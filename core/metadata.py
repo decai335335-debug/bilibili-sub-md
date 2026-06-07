@@ -12,7 +12,7 @@ from config import (
     BILI_PLAYER_V2_API,
     BILI_SERIES_API,
     BILI_FAVLIST_API,
-    DEFAULT_HEADERS,
+    build_headers,
     REQUEST_TIMEOUT,
     MAX_RETRIES,
     RETRY_DELAY,
@@ -20,15 +20,26 @@ from config import (
 from models import VideoMeta, VideoPage
 
 
+# 全局 cookie，由主程序设置
+_global_cookie: str = ""
+
+
+def set_cookie(cookie: str) -> None:
+    """设置全局 Cookie，供后续 API 请求使用。"""
+    global _global_cookie
+    _global_cookie = cookie.strip() if cookie else ""
+
+
 def _get_json(url: str, params: Optional[dict] = None) -> dict:
     """带重试的 GET 请求。"""
     last_error = None
+    headers = build_headers(_global_cookie)
     for attempt in range(MAX_RETRIES):
         try:
             resp = requests.get(
                 url,
                 params=params,
-                headers=DEFAULT_HEADERS,
+                headers=headers,
                 timeout=REQUEST_TIMEOUT,
             )
             resp.raise_for_status()

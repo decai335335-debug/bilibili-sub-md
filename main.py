@@ -21,7 +21,7 @@ from core.extractor import (
     is_collection_url,
     extract_collection_info,
 )
-from core.metadata import fetch_video_meta, fetch_collection_videos
+from core.metadata import fetch_video_meta, fetch_collection_videos, set_cookie
 from models import DownloadResult, DownloadTask
 
 app = typer.Typer(add_completion=False)
@@ -139,8 +139,14 @@ def download(
     lang: Optional[str] = typer.Option(None, "--lang", "-l", help="首选字幕语言代码，如 zh-CN / en"),
     max_workers: int = typer.Option(3, "--workers", "-w", help="并发数"),
     interactive: bool = typer.Option(False, "--interactive", "-i", help="交互模式输入链接"),
+    cookie: Optional[str] = typer.Option(None, "--cookie", "-c", help="Bilibili Cookie 中的 SESSDATA 值（用于获取需要登录的字幕）"),
 ):
     """批量下载 Bilibili 视频字幕。"""
+    # 设置全局 Cookie
+    if cookie:
+        set_cookie(cookie)
+        console.print("[dim]已设置登录 Cookie[/dim]")
+
     console.print("[bold cyan]bilibili-sub-md[/bold cyan] — 批量字幕下载工具\n")
 
     raw_urls: List[str] = []

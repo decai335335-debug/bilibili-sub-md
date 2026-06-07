@@ -136,6 +136,31 @@ python main.py download BV1xx411c7mD --lang en
 python main.py download BV1xx411c7mD -o ./output -w 5
 ```
 
+### 场景六：带 Cookie 下载（需要登录的字幕）
+
+**什么时候用**：视频明明有"字幕"按钮，但工具提示"暂无可用字幕"。这通常是因为该字幕需要登录才能通过 API 获取（如部分 AI 生成字幕或大会员专享字幕）。
+
+**获取 SESSDATA 的方法**：
+
+1. 用浏览器打开 `https://www.bilibili.com` 并登录账号
+2. 按 `F12` 打开开发者工具 → 切换到 **Application / 应用** 标签
+3. 左侧选择 **Cookies → https://www.bilibili.com**
+4. 找到 `SESSDATA` 这一项，复制它的**值**（是一串字母和数字，不含 `SESSDATA=`）
+
+**运行命令**：
+
+```bash
+python main.py download "https://www.bilibili.com/video/BV1dM411U7qK" --cookie "你的SESSDATA值"
+```
+
+或在交互模式下：
+
+```bash
+python main.py download --cookie "你的SESSDATA值" -i
+```
+
+> ⚠️ **安全提示**：SESSDATA 相当于你的登录凭证，不要把它分享到公开仓库或发给他人。建议只在本地命令行中使用。
+
 ### 支持的 URL 格式
 
 | URL 类型 | 示例 | 说明 |
