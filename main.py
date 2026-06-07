@@ -2,16 +2,16 @@
 # -*- coding: utf-8 -*-
 """bilibili-sub-md CLI 入口"""
 
-import asyncio
 import random
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Optional
 
 import typer
 from rich.console import Console
-from rich.progress import Progress, TaskID
+from rich.progress import Progress
 from rich.table import Table
 
 from config import DEFAULT_OUTPUT_DIR
@@ -116,24 +116,19 @@ def _prompt_links() -> List[str]:
     return [l.strip() for l in lines if l.strip()]
 
 
-async def _download_with_delay(
+def _download_with_delay(
     task: DownloadTask,
     fmt: str,
     preferred_lang: Optional[str],
-    progress: Progress,
-    task_id: TaskID,
 ) -> DownloadResult:
     """带随机延迟的下载任务。"""
-    await asyncio.sleep(random.uniform(1.0, 2.5))
-    result = await asyncio.to_thread(
-        download_one,
+    time.sleep(random.uniform(1.0, 2.5))
+    return download_one(
         task.url,
         task.output_dir,
         fmt,
         preferred_lang,
     )
-    progress.advance(task_id)
-    return result
 
 
 @app.command()
@@ -151,11 +146,9 @@ def download(
     raw_urls: List[str] = []
     if urls:
         raw_urls = urls
-    elif interactive or not sys.stdin.isatty():
-        raw_urls = _prompt_links()
     else:
-        console.print("[yellow]请提供 URL 或使用 --interactive 进入交互模式[/yellow]")
-        raise typer.Exit(1)
+        # 没有命令行参数时，默认进入交互模式让用户输入链接
+        raw_urls = _prompt_links()
 
     if not raw_urls:
         console.print("[yellow]没有可处理的链接[/yellow]")
@@ -172,13 +165,26 @@ def download(
     with Progress(console=console) as progress:
         task_id = progress.add_task("[cyan]下载中...", total=len(tasks))
 
-        sem = asyncio.Semaphore(max_workers)
+        def run(task: DownloadTask) -> DownloadResult:
+            result = _download_with_delay(task, fmt, lang)
+            progress.advance(task_id)
+            return result
 
-        async def run(task: DownloadTask) -> DownloadResult:
-            async with sem:
-                return await _download_with_delay(task, fmt, lang, progress, task_id)
-
-        results = asyncio.run(asyncio.gather(*[run(t) for t in tasks]))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(run, t): t for t in tasks}
+            for future in as_completed(futures):
+                try:
+                    results.append(future.result())
+                except Exception as e:
+                    task = futures[future]
+                    results.append(
+                        DownloadResult(
+                            bvid=extract_bvid(task.url) or "",
+                            cid="",
+                            status="failed",
+                            error=f"线程异常: {e}",
+                        )
+                    )
 
     # 结果表格
     table = Table(title="下载结果")
