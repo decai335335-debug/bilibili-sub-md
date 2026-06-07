@@ -53,5 +53,7 @@ def build_headers(cookie: str = "") -> dict:
     """根据是否提供 Cookie 构建请求头。"""
     headers = dict(DEFAULT_HEADERS)
     if cookie:
-        headers["Cookie"] = cookie if cookie.lower().startswith("sessdata=") else f"SESSDATA={cookie}"
+        # 确保 cookie 值只包含 latin-1 安全字符（SESSDATA 应为 URL 编码的 ASCII）
+        safe_cookie = "".join(ch for ch in cookie if ord(ch) < 256)
+        headers["Cookie"] = safe_cookie if safe_cookie.lower().startswith("sessdata=") else f"SESSDATA={safe_cookie}"
     return headers

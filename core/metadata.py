@@ -27,7 +27,23 @@ _global_cookie: str = ""
 def set_cookie(cookie: str) -> None:
     """设置全局 Cookie，供后续 API 请求使用。"""
     global _global_cookie
-    _global_cookie = cookie.strip() if cookie else ""
+    if not cookie:
+        _global_cookie = ""
+        return
+
+    # 清理：去除首尾空白、换行、不可见字符
+    cleaned = cookie.strip().replace("\n", "").replace("\r", "").replace("\t", "")
+
+    # 如果用户复制了整个 "SESSDATA=xxx"，只取后面的值
+    if cleaned.lower().startswith("sessdata="):
+        cleaned = cleaned.split("=", 1)[1]
+
+    # SESSDATA 应该是 URL 编码的 ASCII，这里确保只保留安全字符
+    # 允许：字母、数字、% 和 URL 编码中常见的符号
+    allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789%-_")
+    cleaned = "".join(ch for ch in cleaned if ch in allowed)
+
+    _global_cookie = cleaned
 
 
 def _get_json(url: str, params: Optional[dict] = None) -> dict:
