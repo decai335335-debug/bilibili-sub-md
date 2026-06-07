@@ -1,4 +1,4 @@
-﻿# bilibili-sub-md 启动脚本
+# bilibili-sub-md 启动脚本
 # 运行时会提示输入 SESSDATA，输入一次后当前窗口内有效
 
 $pythonPath = "C:/Users/15403/AppData/Local/Programs/Python/Python311/python.exe"
@@ -18,4 +18,11 @@ if (-not $env:BILI_COOKIE) {
     Write-Host "检测到已设置 BILI_COOKIE 环境变量" -ForegroundColor Green
 }
 
-& $pythonPath $scriptPath
+# 双重保险：如果环境变量有值，同时通过命令行参数传递
+if ($env:BILI_COOKIE) {
+    $cookieValue = $env:BILI_COOKIE.Trim()
+    Write-Host "Cookie 长度: $($cookieValue.Length)" -ForegroundColor Gray
+    & $pythonPath $scriptPath --cookie $cookieValue
+} else {
+    & $pythonPath $scriptPath
+}
