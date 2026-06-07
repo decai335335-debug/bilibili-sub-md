@@ -166,7 +166,7 @@ def _collect_tasks(
 
 def _prompt_links() -> List[str]:
     """交互式多行链接输入。"""
-    console.print("请输入 Bilibili 视频或播放列表链接（每行一个，空行结束）：")
+    console.print("请输入 Bilibili 视频或播放列表链接（每行一个，空行结束，输入 exit 退出）：")
     lines = []
     while True:
         try:
@@ -175,6 +175,8 @@ def _prompt_links() -> List[str]:
             break
         if not line:
             break
+        if line.lower() in ("exit", "quit", "q"):
+            return ["__EXIT__"]
         lines.extend(line.replace(",", "\n").split("\n"))
     return [l.strip() for l in lines if l.strip()]
 
@@ -216,82 +218,90 @@ def download(
 
     console.print("[bold cyan]bilibili-sub-md[/bold cyan] — 批量字幕下载工具\n")
 
-    raw_urls: List[str] = []
-    if urls:
-        raw_urls = urls
-    else:
-        # 没有命令行参数时，默认进入交互模式让用户输入链接
-        raw_urls = _prompt_links()
+    def _run_once(raw_urls: List[str]) -> bool:
+        """执行一次下载批次，返回是否有失败。"""
+        if not raw_urls:
+            console.print("[yellow]没有可处理的链接[/yellow]")
+            return False
 
-    if not raw_urls:
-        console.print("[yellow]没有可处理的链接[/yellow]")
-        raise typer.Exit(1)
+        tasks = _collect_tasks(raw_urls, output, all_parts=all_parts)
+        if not tasks:
+            console.print("[yellow]没有可下载的任务[/yellow]")
+            return False
 
-    tasks = _collect_tasks(raw_urls, output, all_parts=all_parts)
-    if not tasks:
-        console.print("[yellow]没有可下载的任务[/yellow]")
-        raise typer.Exit(1)
+        console.print(f"\n共 {len(tasks)} 个下载任务，输出格式: {fmt}")
 
-    console.print(f"\n共 {len(tasks)} 个下载任务，输出格式: {fmt}")
+        results: List[DownloadResult] = []
+        with Progress(console=console) as progress:
+            task_id = progress.add_task("[cyan]下载中...", total=len(tasks))
 
-    results: List[DownloadResult] = []
-    with Progress(console=console) as progress:
-        task_id = progress.add_task("[cyan]下载中...", total=len(tasks))
+            def run(task: DownloadTask) -> DownloadResult:
+                result = _download_with_delay(task, fmt, lang)
+                progress.advance(task_id)
+                return result
 
-        def run(task: DownloadTask) -> DownloadResult:
-            result = _download_with_delay(task, fmt, lang)
-            progress.advance(task_id)
-            return result
-
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(run, t): t for t in tasks}
-            for future in as_completed(futures):
-                try:
-                    results.append(future.result())
-                except Exception as e:
-                    task = futures[future]
-                    results.append(
-                        DownloadResult(
-                            bvid=extract_bvid(task.url) or "",
-                            cid="",
-                            status="failed",
-                            error=f"线程异常: {e}",
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {executor.submit(run, t): t for t in tasks}
+                for future in as_completed(futures):
+                    try:
+                        results.append(future.result())
+                    except Exception as e:
+                        task = futures[future]
+                        results.append(
+                            DownloadResult(
+                                bvid=extract_bvid(task.url) or "",
+                                cid="",
+                                status="failed",
+                                error=f"线程异常: {e}",
+                            )
                         )
-                    )
 
-    # 结果表格
-    table = Table(title="下载结果")
-    table.add_column("BV 号", style="cyan")
-    table.add_column("标题", style="green")
-    table.add_column("状态", style="bold")
-    table.add_column("语言")
-    table.add_column("文件路径")
+        # 结果表格
+        table = Table(title="下载结果")
+        table.add_column("BV 号", style="cyan")
+        table.add_column("标题", style="green")
+        table.add_column("状态", style="bold")
+        table.add_column("语言")
+        table.add_column("文件路径")
 
-    success = skipped = failed = 0
-    for r in results:
-        if r.status == "success":
-            success += 1
-            status_text = f"[green]{r.status}[/green]"
-        elif r.status == "skipped":
-            skipped += 1
-            status_text = f"[yellow]{r.status}[/yellow]"
-        else:
-            failed += 1
-            status_text = f"[red]{r.status}[/red]"
+        success = skipped = failed = 0
+        for r in results:
+            if r.status == "success":
+                success += 1
+                status_text = f"[green]{r.status}[/green]"
+            elif r.status == "skipped":
+                skipped += 1
+                status_text = f"[yellow]{r.status}[/yellow]"
+            else:
+                failed += 1
+                status_text = f"[red]{r.status}[/red]"
 
-        path_text = str(r.filepath) if r.filepath else "-"
-        if r.error:
-            path_text = f"{path_text}\n[yellow]{r.error}[/yellow]"
+            path_text = str(r.filepath) if r.filepath else "-"
+            if r.error:
+                path_text = f"{path_text}\n[yellow]{r.error}[/yellow]"
 
-        table.add_row(r.bvid, r.title or "-", status_text, r.language or "-", path_text)
+            table.add_row(r.bvid, r.title or "-", status_text, r.language or "-", path_text)
 
-    console.print(table)
-    console.print(
-        f"\n[bold]汇总:[/bold] 成功 {success} | 跳过 {skipped} | 失败 {failed} | 总计 {len(results)}"
-    )
+        console.print(table)
+        console.print(
+            f"\n[bold]汇总:[/bold] 成功 {success} | 跳过 {skipped} | 失败 {failed} | 总计 {len(results)}"
+        )
+        console.print("─" * 60)
+        return failed == 0
 
-    if failed > 0:
-        raise typer.Exit(1)
+    if urls:
+        # 命令行传入 URL，保持单次执行后退出
+        ok = _run_once(urls)
+        if not ok:
+            raise typer.Exit(1)
+    else:
+        # 交互模式：循环输入，直到用户输入 exit 或关闭窗口
+        while True:
+            raw_urls = _prompt_links()
+            if raw_urls == ["__EXIT__"]:
+                console.print("[dim]已退出交互模式，再见 👋[/dim]")
+                break
+            _run_once(raw_urls)
 
 
 if __name__ == "__main__":
