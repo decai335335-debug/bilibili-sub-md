@@ -1,0 +1,2 @@
+# 保护 PowerShell 脚本编码：必须用 UTF-8 with BOM + CRLF
+*.ps1 text working-tree-encoding=UTF-8 eol=crlf

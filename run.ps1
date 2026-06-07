@@ -1,4 +1,4 @@
-# bilibili-sub-md 启动脚本
+﻿# bilibili-sub-md 启动脚本
 # 运行时会提示输入 SESSDATA，输入一次后当前窗口内有效
 
 $pythonPath = "C:/Users/15403/AppData/Local/Programs/Python/Python311/python.exe"
