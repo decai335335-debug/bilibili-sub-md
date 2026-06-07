@@ -55,6 +55,7 @@ def _expand_collection(url: str) -> tuple:
         if bvid and not bvids:
             # 可能是多P视频链接，需要单独处理
             meta = fetch_video_meta(bvid)
+            console.print(f"[dim]获取视频信息: {bvid}[/dim]")
             if meta.pages and len(meta.pages) > 1:
                 return meta.title, [f"https://www.bilibili.com/video/{meta.bvid}?p={p.page}" for p in meta.pages]
             return meta.title, [f"https://www.bilibili.com/video/{meta.bvid}"]
@@ -119,6 +120,7 @@ def _collect_tasks(
             continue
 
         # 单个视频链接
+        console.print(f"[dim]正在解析: {raw[:60]}[/dim]")
         bvid = extract_bvid(raw)
         if not bvid:
             console.print(f"[yellow]warn[/yellow] 跳过无效链接: {raw}")
@@ -126,6 +128,7 @@ def _collect_tasks(
 
         try:
             meta = fetch_video_meta(bvid)
+            console.print(f"[dim]获取视频信息: {bvid}[/dim]")
         except Exception as e:
             console.print(f"[yellow]warn[/yellow] 无法获取视频信息: {raw} — {e}")
             continue
@@ -310,6 +313,7 @@ def download(
         # 交互模式：循环输入，直到用户输入 exit 或关闭窗口
         while True:
             raw_urls = _prompt_links()
+            console.print(f"[dim]读取到 {len(raw_urls)} 个链接[/dim]")
             if raw_urls == ["__EXIT__"]:
                 console.print("[dim]已退出交互模式，再见 👋[/dim]")
                 break
