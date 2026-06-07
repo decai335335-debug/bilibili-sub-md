@@ -75,7 +75,7 @@ pip install -r requirements.txt
 打开 `config.py`，把 `DEFAULT_OUTPUT_DIR` 改成你的 Obsidian 仓库路径：
 
 ```python
-DEFAULT_OUTPUT_DIR = Path("E:/Obsidian/主仓库/11-subtitles")
+DEFAULT_OUTPUT_DIR = Path("E:/Obsidian/主仓库/11-subtitles/bilibili")
 ```
 
 ---

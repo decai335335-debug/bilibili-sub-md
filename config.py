@@ -3,7 +3,7 @@
 from pathlib import Path
 
 # 默认输出目录
-DEFAULT_OUTPUT_DIR = Path("E:/Obsidian/主仓库/11-subtitles")
+DEFAULT_OUTPUT_DIR = Path("E:/Obsidian/主仓库/11-subtitles/bilibili")
 
 # 请求相关
 REQUEST_TIMEOUT = 30
