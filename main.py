@@ -24,7 +24,7 @@ from core.extractor import (
     is_collection_url,
     extract_collection_info,
 )
-from core.metadata import fetch_video_meta, fetch_collection_videos, set_cookie
+from core.metadata import fetch_video_meta, fetch_collection_videos, set_cookie, set_debug
 from models import DownloadResult, DownloadTask
 
 app = typer.Typer(add_completion=False)
@@ -213,6 +213,7 @@ def download(
     interactive: bool = typer.Option(False, "--interactive", "-i", help="交互模式输入链接"),
     cookie: Optional[str] = typer.Option(None, "--cookie", "-c", help="Bilibili Cookie 中的 SESSDATA 值（用于获取需要登录的字幕）"),
     all_parts: bool = typer.Option(False, "--all-parts", "-a", help="自动下载多 P 视频的全部分 P，保存到以视频标题命名的文件夹"),
+    debug: bool = typer.Option(False, "--debug", "-d", help="开启字幕 API 调试输出"),
 ):
     """批量下载 Bilibili 视频字幕。"""
     # 设置全局 Cookie：优先命令行参数，其次环境变量
@@ -232,6 +233,9 @@ def download(
         console.print("[dim]提示：如需下载登录后才能看到的字幕，请用 --cookie 参数或 BILI_COOKIE 环境变量传入 SESSDATA[/dim]")
 
     console.print("[bold cyan]bilibili-sub-md[/bold cyan] — 批量字幕下载工具\n")
+    if debug:
+        set_debug(True)
+        console.print("[dim]调试模式已开启[/dim]")
 
     def _run_once(raw_urls: List[str]) -> bool:
         """执行一次下载批次，返回是否有失败。"""
