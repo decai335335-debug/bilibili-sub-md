@@ -22,6 +22,8 @@ from models import VideoMeta, VideoPage
 
 # 全局 cookie，由主程序设置
 _global_cookie: str = ""
+# 调试开关（由主程序控制）
+_debug_mode: bool = False
 
 
 def set_cookie(cookie: str) -> None:
@@ -44,6 +46,17 @@ def set_cookie(cookie: str) -> None:
     cleaned = "".join(ch for ch in cleaned if ch in allowed)
 
     _global_cookie = cleaned
+
+
+def set_debug(enabled: bool) -> None:
+    """开关调试输出。"""
+    global _debug_mode
+    _debug_mode = enabled
+
+
+def _debug(msg: str) -> None:
+    if _debug_mode:
+        print(f"[debug] {msg}")
 
 
 def _get_json(url: str, params: Optional[dict] = None) -> dict:
@@ -121,16 +134,47 @@ def fetch_subtitle_tracks(bvid: str, cid: str, aid: str) -> List[dict]:
     last_error = None
     for url, params in urls_to_try:
         try:
+            _debug(f"字幕 API 请求: {url} params={params}")
             payload = _get_json(url, params)
-            if payload.get("code") != 0:
-                # 可重试错误码
-                code = payload.get("code")
-                if code in (-509, -3) or (isinstance(code, int) and code < 0):
-                    last_error = RuntimeError(payload.get("message", "API 错误"))
-                    continue
-                raise RuntimeError(payload.get("message", "无法获取字幕列表"))
+            code = payload.get("code")
+            msg = payload.get("message", "")
+            _debug(f"字幕 API 响应: code={code} message={msg}")
 
-            subtitles = payload.get("data", {}).get("subtitle", {}).get("subtitles", [])
+            if code != 0:
+                # 可重试错误码
+                if code in (-509, -3) or (isinstance(code, int) and code < 0):
+                    last_error = RuntimeError(msg or "API 错误")
+                    _debug(f"字幕 API 可重试错误: {last_error}")
+                    continue
+                raise RuntimeError(msg or "无法获取字幕列表")
+
+            data = payload.get("data", {})
+            subtitle_obj = data.get("subtitle", {})
+            subtitles = subtitle_obj.get("subtitles", [])
+
+            _debug(f"字幕 API data keys: {list(data.keys())}")
+            _debug(f"subtitle obj keys: {list(subtitle_obj.keys())}")
+            _debug(f"subtitles count: {len(subtitles)}")
+            for i, s in enumerate(subtitles[:5]):
+                _debug(f"  track[{i}]: lan={s.get('lan')} doc={s.get('lan_doc')} url={s.get('subtitle_url', '')[:60]}...")
+
+            # 如果 subtitles 为空，检查是否有 allow_submit 等字段
+            if not subtitles:
+                _debug(f"⚠️ subtitles 为空! subtitle_obj={subtitle_obj}")
+                # 某些视频字幕在 view API 中，尝试从 view API 获取
+                try:
+                    view_payload = _get_json(BILI_VIEW_API, {"bvid": bvid})
+                    view_data = view_payload.get("data", {})
+                    view_subtitle = view_data.get("subtitle", {})
+                    view_list = view_subtitle.get("list", [])
+                    _debug(f"view API subtitle.list count: {len(view_list)}")
+                    for i, s in enumerate(view_list[:5]):
+                        _debug(f"  view track[{i}]: lan={s.get('lan')} doc={s.get('lan_doc')} url={s.get('subtitle_url', '')[:60]}...")
+                    if view_list:
+                        subtitles = view_list
+                except Exception as e:
+                    _debug(f"view API 字幕获取失败: {e}")
+
             tracks = []
             for item in subtitles:
                 url_str = item.get("subtitle_url") or ""
@@ -151,6 +195,7 @@ def fetch_subtitle_tracks(bvid: str, cid: str, aid: str) -> List[dict]:
                 )
             return tracks
         except Exception as e:
+            _debug(f"字幕 API 异常: {e}")
             last_error = e
             continue
 
