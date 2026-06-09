@@ -6,6 +6,7 @@ import os
 import random
 import sys
 import time
+import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Optional
@@ -14,8 +15,9 @@ import typer
 from rich.console import Console
 from rich.progress import Progress
 from rich.table import Table
+from rich.text import Text
 
-from config import DEFAULT_OUTPUT_DIR
+from config import DEFAULT_OUTPUT_DIR, OBSIDIAN_VAULT_NAME, OBSIDIAN_VAULT_ROOT
 from core.downloader import download_one
 from core.extractor import (
     extract_bvid,
@@ -28,7 +30,7 @@ from core.metadata import fetch_video_meta, fetch_collection_videos, set_cookie
 from models import DownloadResult, DownloadTask
 
 app = typer.Typer(add_completion=False)
-console = Console()
+console = Console(force_terminal=True)
 
 
 def _safe_folder_name(name: str) -> str:
@@ -291,7 +293,20 @@ def download(
                 failed += 1
                 status_text = f"[red]{r.status}[/red]"
 
-            path_text = str(r.filepath) if r.filepath else "-"
+            if r.filepath:
+                try:
+                    rel_path = r.filepath.relative_to(OBSIDIAN_VAULT_ROOT).with_suffix('')
+                    rel_path_str = str(rel_path).replace('\\', '/')
+                    vault = urllib.parse.quote(OBSIDIAN_VAULT_NAME)
+                    file = urllib.parse.quote(rel_path_str, safe='/')
+                    obsidian_url = f"obsidian://open?vault={vault}&file={file}"
+                    path_text = Text(r.filepath.name, style=f"link {obsidian_url}")
+                except ValueError:
+                    folder_path = r.filepath.parent.resolve()
+                    file_link = folder_path.as_uri()
+                    path_text = Text(file_link, style=f"link {file_link}")
+            else:
+                path_text = "-"
             if r.error:
                 path_text = f"{path_text}\n[yellow]{r.error}[/yellow]"
 
@@ -302,6 +317,11 @@ def download(
             f"\n[bold]汇总:[/bold] 成功 {success} | 跳过 {skipped} | 失败 {failed} | 总计 {len(results)}"
         )
         console.print("─" * 60)
+        for r in results:
+            if r.filepath and r.status == "success":
+                folder = str(r.filepath.parent.resolve())
+                console.print(f'[dim]打开文件夹: explorer "{folder}"[/dim]')
+                break
         return failed == 0
 
     if urls:

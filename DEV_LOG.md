@@ -24,6 +24,7 @@
 |------|------|---------|---------|
 | v0.1.0 | 2025-06-08 | 初始版本 | 复刻 BOC 插件 API 逻辑，实现批量下载、播放列表展开、三格式输出 |
 | v0.2.0 | 2025-06-10 | 功能 B：多 P 视频全部分 P 自动下载 | `--all-parts` 参数 + 交互式 A/B 选择，保持显式 `?p=N` 只下指定 P 的原行为 |
+| v0.2.1 | 2026-06-09 | 功能 C：Obsidian 可点击链接 | `Text(style="link URL")` + `Console(force_terminal=True)`，解决 Table 中 OSC 8 超链接渲染问题 |
 
 ---
 
@@ -38,6 +39,10 @@
 | 合集 API 分页 | B 站系列/合集接口一次最多返回 30 条 | 循环请求 `pn` 直到返回空数组 | v0.1.0 |
 | 多 P 全量下载时同一 BV 被去重 | 原去重键仅 `(bvid, output_dir)`，导致不同分 P 被合并 | 去重键改为 `(bvid_p{page}, output_dir)`，保留每一分 P | v0.2.0 |
 | 多 P 视频默认只下 P1 的需求冲突 | 用户希望默认只下 P1，但也支持一键全下 | 显式 `?p=N` 时严格按指定 P 下载；无 `?p=` 且多 P 时询问 A/B 或 `--all-parts` | v0.2.0 |
+| rich `[link=...]` markup 在 Table 中失效 | `[link=url]text[/link]` 是文本层 markup，Table 截断/换行会破坏标签闭合，导致链接不渲染 | 改用 `Text(style="link URL")` 对象层属性，链接信息存储在对象内部，不受文本截断影响 | v0.2.1 |
+| rich `Text` 构造函数没有 `link` 参数 | 误以为 `Text(text, link=url)` 可用，实际应通过 `style` 参数设置 | `Text(text, style=f"link {url}")` | v0.2.1 |
+| 通过 exe 启动菜单调用时 OSC 8 不输出 | `rich.Console` 默认检测 `sys.stdout.isatty()`，被 exe 启动时 stdout 非 TTY，导致禁用超链接 | `Console(force_terminal=True)` 强制启用终端模式，确保 OSC 8 序列正常输出 | v0.2.1 |
+| PowerShell 5.1 脚本 UTF-8 乱码 | `.ps1` 脚本以 UTF-8 无 BOM 保存，PowerShell 5.1 按系统代码页 GBK 解码 | 文件头添加 UTF-8 BOM（`0xEF 0xBB 0xBF`） | v0.2.1 |
 
 ---
 
@@ -96,6 +101,8 @@ B 站的"播放列表"是一个泛化概念，实际包含多种类型：
 | 字幕语言选择 | ✅ 中文字幕优先于 AI 字幕 |
 | 并发下载 | ✅ 3 并发 + 随机延迟稳定运行 |
 | 表格格式修复 | ✅ Markdown 表格正确渲染 |
+| Obsidian 可点击链接 | ✅ Windows Terminal 中 Ctrl+点击成功跳转 Obsidian |
+| 启动菜单 exe 调用 | ✅ 通过 `force_terminal=True` 解决 OSC 8 输出问题 |
 
 ---
 
@@ -104,7 +111,7 @@ B 站的"播放列表"是一个泛化概念，实际包含多种类型：
 ```
 bilibili-sub-md/
 ├── main.py              # CLI 入口，交互逻辑，批量调度
-├── config.py            # 全局常量配置
+├── config.py            # 全局常量配置（含 Obsidian Vault 映射）
 ├── models.py            # Pydantic 模型
 ├── requirements.txt     # 依赖清单
 ├── README.md            # 用户文档
